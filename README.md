@@ -81,10 +81,51 @@ Standard virus scanning **cannot** detect self-deleting malware. The defense is 
 
 ---
 
+## 🚀 How to Apply This Spec on OpenClaw
+
+### Prerequisites
+- OpenClaw Gateway v2026.3+ with Solo Agent enabled
+- Python 3.10+ (for RAG scripts)
+- ChromaDB (for vector storage)
+
+### Step-by-Step
+
+1. **Clone this repo** and scaffold the `memory/` directory structure as defined in `ARCHITECTURE_HYBRID_v1.9.md` Section II.
+
+2. **Configure your Identity** — Edit `0_CONSTITUTION/` (axioms, boundaries) and `1_IDENTITY/` (agent profile) to match your agent's purpose.
+
+3. **Deploy RAG scripts** — Place `write_helper.py`, `query.py`, `nightly_indexer.py` into `memory/4_OPERATIONAL_DATA/rag/`. Implement them following the specs in `TOOL_HARNESS_LAYER.md`.
+
+4. **Set up the Tool Registry** — Create `tool_registry.json` following the schema in `TOOL_HARNESS_LAYER.md` Section 2. Register every script with its SHA-256 hash.
+
+5. **Register Cron Jobs** — Run `cron_setup.py` or manually register 4 native OpenClaw cron jobs as listed in `AGENT_OPERATIONAL_GUIDE_v1.9.md` Section 9.
+
+6. **First Boot** — Load the bootstrap sequence (Runtime Mode) from `AGENT_OPERATIONAL_GUIDE_v1.9.md` Section 1A. Write your first memory entry using `write_helper.py`.
+
+7. **Verify** — Run a full Parity Audit (`parity_audit.py --full`) following the procedure in `PARITY_AUDIT.md` to confirm zero gaps between spec and implementation.
+
+---
+
+## 💖 Support This Project
+
+If this architecture helped you build something awesome or saved you weeks of design work, consider supporting continued development:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/phusaonair)
+
+Your support directly funds research into future versions and new tools for the OpenClaw ecosystem.
+
+---
+
 ## 🔗 Related
 
 - **ATLAS Architecture v1.0** — Sister architecture for multi-agent systems (referenced but not included in this repo)
 - **OpenClaw Gateway** — Target runtime platform (v2026.3+)
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE) — free for personal and commercial use.
 
 ---
 
