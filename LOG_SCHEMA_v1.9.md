@@ -1,133 +1,132 @@
 # LOG_SCHEMA.md – v1.9
-**Cognitive Memory Block Standard – Deterministic, Safe, Collision-Resistant & Graph-Consistent**
-**Áp dụng cho:** Tất cả Solo Agent trong hệ sinh thái FEOFALLS
+**Cognitive Memory Block Standard – Deterministic, Safe, Collision-Resistant & Graph-Consistent**  
+**Applies to:** All Solo Agents within the FEOFALLS ecosystem  
 
-**Phiên bản:** v1.9
-**Tác giả:** Arc - Builder (FEOFALLS Team)
-**Ngày cập nhật:** 2026-04-01
-**Cơ sở:** v1.723 | Thêm [OBSERVATION] type, 3 metadata mới (TOOL_CALLS, SESSION_TOKENS, PARITY_STATUS), Structured Output Retry tracking.
+**Version:** v1.9  
+**Author:** Arc - Builder (FEOFALLS Team)  
+**Date Updated:** 2026-04-01  
 
-**Mục tiêu chính:**
-- Loại bỏ hoàn toàn rủi ro LLM sinh NODE_ID sai format
-- Đảm bảo uniqueness của NODE_ID ngay cả khi trùng keyword + ngày (short-hash)
-- Bảo vệ causal chain khi consolidate (archived_alias.json – redirect không sửa edge gốc)
-- Kiểm soát token & context explosion qua Circuit Breaker tiered expansion
-- Tự động semantic summary nodes + archive redirect chống node explosion
-- Giữ single source of truth là Markdown files
-- **[MỚI v1.9]** Tracking tool calls, session tokens, parity status per memory entry
-- Complexity Budget: không tăng so với v1.723 (≤9)
+**Primary Objectives:**
+- Eliminate the risk of LLMs generating improperly formatted `NODE_ID`s entirely.
+- Ensure `NODE_ID` uniqueness even with duplicate keywords and dates (via short-hash).
+- Protect causal chains during consolidation (`archived_alias.json` – redirects without mutating original edges).
+- Control token and context explosion via Circuit Breaker tiered expansion.
+- Automate semantic summary nodes and archive redirects to prevent node explosion.
+- Maintain Markdown files as the strict single source of truth.
+- Track tool calls, session tokens, and parity status per memory entry.
+- Maintain strict adherence to the defined Complexity Budget (≤9 modules).
 
 ---
 
-## 1. Node ID Generation Rule (BẮT BUỘC – Deterministic & Collision-Resistant)
+## 1. Node ID Generation Rule (MANDATORY – Deterministic & Collision-Resistant)
 
-**Nguyên tắc cốt lõi (giữ nguyên từ v1.722):**
-LLM **không được phép** tự viết NODE_ID.
-LLM chỉ cung cấp 2 trường bắt buộc:
+**Core Principle:**
+The LLM is **strictly prohibited** from generating a `NODE_ID`.
+The LLM only provides 2 mandatory fields:
 
-- **TYPE**: một trong các loại được liệt kê ở phần 2
-- **KEYWORD**: chuỗi ngắn gọn (tối đa 5 từ, không chứa ký tự đặc biệt ngoài dấu cách)
+- **TYPE**: Placed exactly as one of the types listed in section 2.
+- **KEYWORD**: A concise string (maximum 5 words, containing no special characters other than spaces).
 
-**write_helper.py sẽ tự động sinh NODE_ID theo format:**
+**`write_helper.py` will automatically construct the `NODE_ID` following this format:**
 
 ```
-[TYPE]-[YYYY-MM-DD]-[keyword-ngắn-gọn][-short-hash]
+[TYPE]-[YYYY-MM-DD]-[short-keyword][-short-hash]
 ```
 
-**Short-hash logic (collision avoidance):**
+**Short-hash Logic (Collision Avoidance):**
 - Input hash = keyword + date + content_snippet[:20]
-- short_hash = sha1(input)[:4] (hex)
-- Nếu ID cơ bản đã tồn tại → thêm -short_hash
-- Nếu vẫn trùng (hiếm) → fallback -nn-short_hash (nn = 01,02,...)
+- short_hash = sha1(input)[:4] (hex format)
+- If the base ID already exists → append `-short_hash`.
+- If a collision persists (extremely rare) → fallback to `-nn-short_hash` (where nn = 01, 02, ...).
 
-**Ví dụ:**
+**Example:**
 
-LLM viết:
+The LLM outputs:
 ```
 TYPE: fact
 KEYWORD: gemini benchmark Q1 2026
 ```
 
-write_helper.py sinh:
+`write_helper.py` generates:
 ```
 fact-2026-03-15-gemini-benchmark-q1-2026-a4f3
 ```
 
-**Lý do:**
-- Loại bỏ 100% lỗi format
-- Đảm bảo uniqueness cao (4 ký tự hex đủ cho hàng nghìn node/ngày)
-- Giữ tính readable
-- Shadow Evaluator block write nếu thiếu TYPE hoặc KEYWORD
+**Rationale:**
+- Eradicates formatting errors entirely (100% mitigation).
+- Guarantees high uniqueness (4 hex characters are sufficient for thousands of nodes daily).
+- Maintains human readability.
+- The Shadow Evaluator will proactively block writes omitting either TYPE or KEYWORD.
 
 ---
 
-## 2. Memory Type Prefix (BẮT BUỘC – danh sách đầy đủ)
+## 2. Memory Type Prefix (MANDATORY – Comprehensive List)
 
-Các prefix hợp lệ (phải viết hoa và nằm trong `[]` ngay đầu entry):
+Valid prefixes (must be capitalized and encased in `[]` at the very beginning of the entry):
 
 ```
-[FACT]          – Dữ liệu khách quan, có thể verify
-[INSIGHT]       – Bài học chưng cất từ nhiều episode
-[ERROR]         – Sai lầm + root cause
-[DECISION]      – Quyết định đã thực thi + rationale
-[PREFERENCE]    – Giá trị ưu tiên của Creator / người dùng
-[WORKFLOW]      – Quy trình lặp lại
-[HYPOTHESIS]    – Giả thuyết chưa verify
-[EXPERIMENT]    – Kết quả thử nghiệm
-[LESSON]        – Bài học rút ra sau verify
-[HEURISTIC]     – Rule nhanh, distilled vào Layer 2
-[SIGNAL]        – Tín hiệu bất thường (trigger reflection)
-[CONSTRAINT]    – Ràng buộc governance
-[ASSUMPTION]    – Giả định cần theo dõi
-[CRON_LOG]      – [v1.723] Kết quả chạy cron job (nightly/weekly/health)
-[OBSERVATION]   – [MỚI v1.9] Feedback thực tế từ Creator / môi trường (dùng để tự calibrate)
+[FACT]          – Objective, verifiable data.
+[INSIGHT]       – Distilled lessons derived from multiple episodes.
+[ERROR]         – Documented failures paired with root cause analysis.
+[DECISION]      – Executed decisions combined with their rationale.
+[PREFERENCE]    – Priority values of the Creator / user.
+[WORKFLOW]      – Established, repeatable processes.
+[HYPOTHESIS]    – Unverified assumptions or proposed ideas.
+[EXPERIMENT]    – Results from executed tests.
+[LESSON]        – Extracted learnings post-verification.
+[HEURISTIC]     – Fast rules of thumb, distilled into Layer 2.
+[SIGNAL]        – Anomalous indicators (triggers for reflection).
+[CONSTRAINT]    – Hard governance boundaries.
+[ASSUMPTION]    – Presumptions requiring active monitoring.
+[CRON_LOG]      – Outcomes of cron job executions (nightly/weekly/health).
+[OBSERVATION]   – Raw, uninterpreted real-world feedback from the Creator or environment.
 ```
 
-> **[CRON_LOG]** (v1.723): Ghi lại kết quả tự động hóa. STATE mặc định: ACTIVE. VALID_UNTIL: AUTO (90 ngày). Không cần causal relations trừ khi phát hiện lỗi quan trọng.
+> **[CRON_LOG]**: Documents automation outcomes. Default STATE: ACTIVE. VALID_UNTIL: AUTO (90 days). Does not require causal relationships unless a critical error is detected.
 
-> **[OBSERVATION]** (v1.9): Ghi nhận hiện tượng thực tế từ Creator hoặc môi trường mà không cần interpret. Ví dụ: "Creator phản hồi output quá dài", "API response time tăng 200%". STATE mặc định: ACTIVE. VALID_UNTIL: AUTO (90 ngày). Thường trở thành source của CAUSED_BY cho [INSIGHT] hoặc [LESSON] sau Reflection.
+> **[OBSERVATION]**: Documents empirical phenomena from the Creator or environment without interpretation. Example: "Creator noted the output was too verbose," or "API response time spiked by 200%." Default STATE: ACTIVE. VALID_UNTIL: AUTO (90 days). Often serves as the source of a `CAUSED_BY` for an `[INSIGHT]` or `[LESSON]` following a Reflection.
 
 ---
 
-## 3. Metadata Block (BẮT BUỘC – đặt ngay sau prefix)
+## 3. Metadata Block (MANDATORY – Placed immediately following the prefix)
 
-Mọi entry phải có đầy đủ các trường sau (dùng dấu `-` đầu dòng):
+Every entry must feature all of the following fields (prefixed with a `-` line initiator):
 
 ```markdown
-- NODE_ID: fact-2026-04-01-gemini-benchmark-q1-2026-a4f3     # do write_helper.py sinh
+- NODE_ID: fact-2026-04-01-gemini-benchmark-q1-2026-a4f3     # Generated exclusively by write_helper.py
 - STATE: PINNED | IMMUTABLE | ACTIVE | DECAYING | ARCHIVED | CONSOLIDATED
 - VERSION: v1 | v2 | v3 ...
-- SUPERSEDES: [NODE_ID cũ]                                    # node bị thay thế (để trống nếu không có)
-- SUPERSEDED_BY: [NODE_ID mới]                                # node thay thế hiện tại (để trống nếu không có)
-- TIMESTAMP: 2026-04-01                                       # ngày tạo
-- LAST_ACCESS: 2026-04-01                                     # nightly tự update khi retrieve
-- VALID_UNTIL: 2026-07-01 | INDEFINITE | AUTO                 # AUTO = TIMESTAMP + 90 ngày
-- CONFIDENCE: 0.00–1.00                                       # tự đánh giá khi tạo
-- SALIENCE: auto                                              # nightly tính: log(access_count + 1)
-- SIGNAL: <optional>                                          # ví dụ: repeated_timeout_error
-- TAGS: [tag1, tag2, tag3]                                    # optional
-- TOOL_CALLS: []                                              # [MỚI v1.9] Danh sách tool calls trong session tạo entry này
-- SESSION_TOKENS: 0                                           # [MỚI v1.9] Số tokens đã dùng trong session tạo entry này
-- PARITY_STATUS: "OK" | "GAP_LOW" | "GAP_MEDIUM" | "GAP_CRITICAL"  # [MỚI v1.9] Kết quả parity check gần nhất
-- STRUCTURED_RETRY_COUNT: 0                                   # [MỚI v1.9] Số lần retry output format sai
+- SUPERSEDES: [old NODE_ID]                                   # The node being replaced (leave blank if none)
+- SUPERSEDED_BY: [new NODE_ID]                                # The node replacing this one (leave blank if none)
+- TIMESTAMP: 2026-04-01                                       # Creation Date
+- LAST_ACCESS: 2026-04-01                                     # Automatically updated by nightly job upon retrieval
+- VALID_UNTIL: 2026-07-01 | INDEFINITE | AUTO                 # AUTO defaults to TIMESTAMP + 90 days
+- CONFIDENCE: 0.00–1.00                                       # Self-assessed during creation
+- SALIENCE: auto                                              # Calculated nightly: log(access_count + 1)
+- SIGNAL: <optional>                                          # e.g., repeated_timeout_error
+- TAGS: [tag1, tag2, tag3]                                    # Optional array
+- TOOL_CALLS: []                                              # Array of tool calls executed in the session creating this entry
+- SESSION_TOKENS: 0                                           # Total tokens consumed in the session creating this entry
+- PARITY_STATUS: "OK" | "GAP_LOW" | "GAP_MEDIUM" | "GAP_CRITICAL"  # Outcome of the most recent parity check
+- STRUCTURED_RETRY_COUNT: 0                                   # Numerical count of retries prompted by malformed outputs
 ```
 
-> **Metadata mới v1.9:** Các trường TOOL_CALLS, SESSION_TOKENS, PARITY_STATUS, STRUCTURED_RETRY_COUNT là **optional**. Nếu agent chưa implement Tool Harness / Session Intelligence thì để giá trị mặc định ([] / 0 / "OK" / 0). Các trường này giúp audit và debug dễ dàng hơn.
+> The metadata fields `TOOL_CALLS`, `SESSION_TOKENS`, `PARITY_STATUS`, and `STRUCTURED_RETRY_COUNT` are **optional**. If an agent hasn't implemented specific harness telemetry, it may omit or default these to empty states. These fields significantly streamline auditing and debugging.
 
-**STATE reference:**
+**STATE References:**
 
-| STATE | Ý nghĩa |
+| STATE | Description |
 |---|---|
-| `PINNED` | Quan trọng, ưu tiên cao — không decay |
-| `IMMUTABLE` | Bất biến tuyệt đối (chỉ dùng cho Constitution layer) |
-| `ACTIVE` | Đang sử dụng bình thường |
-| `DECAYING` | Không access 60+ ngày — sắp archive |
-| `ARCHIVED` | Đã archive vào `/memory/archive/YYYY-MM/` |
-| `CONSOLIDATED` | Đã được tổng hợp vào [INSIGHT]-summary node |
+| `PINNED` | High-priority importance — immune to decay. |
+| `IMMUTABLE` | Absolute foundation (exclusive to the Constitution layer). |
+| `ACTIVE` | Currently operational and structurally sound. |
+| `DECAYING` | Unaccessed for 60+ days — slated for archiving. |
+| `ARCHIVED` | Safely migrated to `/memory/archive/YYYY-MM/`. |
+| `CONSOLIDATED` | Merged into an `[INSIGHT]` summary node. |
 
 ---
 
-## 4. Causal Relations (CHỈ dùng NODE_ID đã được sinh – deterministic)
+## 4. Causal Relations (STRICTLY utilizes generated NODE_IDs – deterministic)
 
 ```markdown
 - CAUSED_BY: hypothesis-2026-03-10-qwen-test-a1b2
@@ -139,23 +138,23 @@ Mọi entry phải có đầy đủ các trường sau (dùng dấu `-` đầu d
 - DERIVED_FROM: insight-2026-03-09-auth-conflict-pattern-ef01
 ```
 
-**Quy tắc direction safety (Shadow Evaluator enforce):**
-- PINNED/IMMUTABLE nodes chỉ được là **target** (không phải source) của các edge mutation
-- ARCHIVED nodes: chỉ được trỏ đến qua archived_alias.json (không trỏ trực tiếp)
+**Direction Safety Rules (Enforced by Shadow Evaluator):**
+- `PINNED`/`IMMUTABLE` nodes may exclusively act as **targets** (never sources) for edge mutations.
+- `ARCHIVED` nodes: Can only be referenced via `archived_alias.json` (no direct pointers allowed).
 
 ---
 
-## 5. Confidence Propagation Formula (hardcoded trong query.py)
+## 5. Confidence Propagation Formula (Hardcoded in query.py)
 
 ```latex
 DerivedConfidence_B = Confidence_A × EdgeWeight × RetrievalScore × e^(-age / τ)
 ```
 
-- τ mặc định = 90 ngày (insight công nghệ), 365 ngày (fact dài hạn)
-- RetrievalScore: rerank_score normalize [0,1]
-- Shadow Evaluator cutoff: Derived Confidence < 0.65 → block cascade + warning
+- τ defaults to 90 days (technology insights) and 365 days (long-term facts).
+- RetrievalScore: Rerank score normalized to [0,1].
+- Shadow Evaluator Cutoff: A Derived Confidence < 0.65 triggers a cascade block + warning.
 
-**Edge Weight Table (hardcoded):**
+**Edge Weight Table (Hardcoded):**
 
 | Relation | Weight |
 |---|---|
@@ -166,59 +165,59 @@ DerivedConfidence_B = Confidence_A × EdgeWeight × RetrievalScore × e^(-age / 
 
 ---
 
-## 6. Circuit Breaker – Tiered Expansion (hardcoded trong query.py)
+## 6. Circuit Breaker – Tiered Expansion (Hardcoded in query.py)
 
-```text
+```python
 if initial_rerank_score < 0.5:
-    → Hard Stop: "Không tìm thấy thông tin đủ tin cậy (rerank < 0.5)"
+    → Hard Stop: "Information fails minimum reliability threshold (rerank < 0.5)."
 elif derived_confidence > 0.75:
-    → Selective Expand: max_nodes = 5, depth = 2
+    → Selective Expand: max_nodes = 5, depth = 2.
 elif user_prompt contains "--deep-reasoning":
-    → Deep Dive: max_nodes = 8, depth = 2
+    → Deep Dive: max_nodes = 8, depth = 2.
 else:
-    → No Expand: chỉ top-k chunks (tiết kiệm token)
+    → No Expand: Restrict to top-k chunks solely (conserves tokens).
 ```
 
 ---
 
-## 7. Lifecycle, Consolidation & Archive Redirect Rules (nightly_indexer.py enforce)
+## 7. Lifecycle, Consolidation & Archive Redirect Rules (Enforced by nightly_indexer.py)
 
-- **PINNED / IMMUTABLE:** miễn nhiễm hoàn toàn (bảo vệ Layer 0–2)
-- **ACTIVE → DECAYING:** 60 ngày không access
-- **DECAYING → ARCHIVED:** +30 ngày hoặc VALID_UNTIL hết hạn
-- **ARCHIVED:** loại khỏi ChromaDB, chuyển file vào `/memory/archive/YYYY-MM/`
+- **PINNED / IMMUTABLE:** Fully immune (safeguarding Layers 0–2).
+- **ACTIVE → DECAYING:** Triggered by 60 days of non-access.
+- **DECAYING → ARCHIVED:** +30 further days of non-access, or `VALID_UNTIL` expiration.
+- **ARCHIVED:** Scrubbed from ChromaDB, markdown file moved to `/memory/archive/YYYY-MM/`.
 
-**Automatic Semantic Summary Nodes (chống node explosion):**
-- Weekly check: nếu cluster DECAYING > 20 node
-- Tạo node mới: `[INSIGHT]-YYYY-MM-DD-cluster-<tên_ngắn>`
-- Trỏ CAUSED_BY về các node cũ (giữ lịch sử)
-- Ghi redirect vào **archived_alias.json**:
+**Automatic Semantic Summary Nodes (Combats Node Explosion):**
+- Weekly validation: If a cluster of `DECAYING` nodes exceeds 20 elements.
+- Generates a new node: `[INSIGHT]-YYYY-MM-DD-cluster-<short-descriptor>`.
+- Redirects `CAUSED_BY` to the deprecated nodes (preserving historical lineage).
+- Writes an alias redirect into **`archived_alias.json`**:
   ```json
   {
     "error-2026-03-05-gemini-400": "insight-2026-03-19-auth-cluster-summary",
     "signal-2026-03-11-repeated-timeout": "insight-2026-03-19-auth-cluster-summary"
   }
   ```
-- Archive node cũ → không sửa edge gốc
-- Reindex chỉ summary node mới
+- The original nodes are archived → Original edges remain unaltered.
+- Only the new summary node undergoes re-indexing.
 
-**Query behavior (query.py):**
-- Trước khi fetch NODE_ID → check archived_alias.json
-- Nếu có alias → redirect + ghi note "[Redirect] node cũ đã consolidate → sử dụng summary"
-- Giữ nguyên traceability lịch sử
-
----
-
-## 8. Retrieval Constraints & Safety Limits (hard limit)
-
-- Max depth = 2
-- Max expanded nodes mặc định = 5
-- Shadow cutoff: Derived Confidence < 0.65 → block cascade + warning
-- Context expansion vượt giới hạn → cắt + warning "Context expansion reached safety limit"
+**Query Behavior (`query.py`):**
+- Prior to resolving a `NODE_ID` → Considers `archived_alias.json`.
+- If an alias is hit → Implements redirect + logs note: "[Redirect] Old node consolidated → utilizing summary."
+- Historical traceability remains uncompromised.
 
 ---
 
-## 9. Ví dụ entry đầy đủ (copy-paste template)
+## 8. Retrieval Constraints & Safety Limits (Hard Limits)
+
+- Maximum Depth = 2
+- Maximum Expanded Nodes Defaults = 5
+- Shadow Cutoff: Derived Confidence < 0.65 → Blocks cascade + warning.
+- When context expansion breaches the safety threshold → Truncation + warning: "Context expansion reached safety limit."
+
+---
+
+## 9. Comprehensive Entry Examples (Copy-Paste Templates)
 
 ```markdown
 [FACT] Benchmark Code Gen Models Q1/2026
@@ -243,12 +242,12 @@ else:
 - RESOLVES: decision-2026-03-11-primary-model-9d0e
 - DEPENDS_ON: experiment-2026-03-10-50-tests-python-f1a2
 
-**Nội dung:**
-Gemini v1.5 Pro đạt tỷ lệ pass@1 92% trên codebase nội bộ, vượt Qwen 2.5 Coder (85%).
+**Content:**
+Gemini v1.5 Pro attained a pass@1 rate of 92% on internal codebases, significantly outperforming Qwen 2.5 Coder (85%).
 ```
 
 ```markdown
-[OBSERVATION] Creator phản hồi output quá dài
+[OBSERVATION] Creator expressed that the output is unnecessarily verbose
 - NODE_ID: observation-2026-04-01-creator-output-too-long-c2d3
 - STATE: ACTIVE
 - VERSION: v1
@@ -266,8 +265,8 @@ Gemini v1.5 Pro đạt tỷ lệ pass@1 92% trên codebase nội bộ, vượt Q
 - PARITY_STATUS: OK
 - STRUCTURED_RETRY_COUNT: 0
 
-**Nội dung:**
-Creator phản hồi rằng output của agent quá dài, cần rút gọn. Đây là observation thực tế, chưa có insight.
+**Content:**
+The Creator provided feedback stipulating that the agent's output is excessively long and requires condensation. This is a raw empirical observation, devoid of generated insights.
 ```
 
 ```markdown
@@ -289,28 +288,23 @@ Creator phản hồi rằng output của agent quá dài, cần rút gọn. Đâ
 - PARITY_STATUS: OK
 - STRUCTURED_RETRY_COUNT: 0
 
-**Kết quả:**
+**Results:**
 - Active: 124, Decaying: 3, Archived: 0, Errors: 0
-- Consolidation: không cần (decaying < 20)
-- Runtime: 03:02 UTC (đúng lịch)
+- Consolidation: Not triggered (decaying node count < 20)
+- Runtime Execution: 03:02 UTC (On schedule)
 ```
 
 ---
 
-## 10. Lưu ý quan trọng nhất (v1.9)
+## 10. Paramount Notes
 
-- Toàn bộ NODE_ID phải do `write_helper.py` sinh → không chấp nhận NODE_ID tự viết từ LLM
-- Source-of-truth duy nhất là Markdown files
-- `archived_alias.json` và `causal_index.json` chỉ là derived cache → regenerate được bất kỳ lúc nào
-- Shadow Evaluator phải block write nếu thiếu TYPE hoặc KEYWORD
-- Graph consistency được bảo vệ bởi `weekly_graph_validator.py`
-- **[v1.723]** Thêm type `[CRON_LOG]` để tracking kết quả automation
-- **[MỚI v1.9]** Thêm type `[OBSERVATION]` để ghi nhận feedback Creator / môi trường
-- **[MỚI v1.9]** 4 metadata mới: TOOL_CALLS, SESSION_TOKENS, PARITY_STATUS, STRUCTURED_RETRY_COUNT
-- **[MỚI v1.9]** Các trường metadata mới là **optional** — agents chưa implement Tool Harness/Session Intelligence có thể dùng giá trị mặc định
+- Every `NODE_ID` must exclusively originate from `write_helper.py` → Do NOT accept LLM-generated `NODE_ID`s.
+- The Single Source of Truth firmly remains the Markdown files.
+- `archived_alias.json` and `causal_index.json` are solely derived caches → Capable of ad-hoc regeneration.
+- The Shadow Evaluator MUST block memory writes omitting a `TYPE` or `KEYWORD`.
+- Overall graph consistency is robustly safeguarded by `weekly_graph_validator.py`.
 
 ---
 
-*Arc - Builder | FEOFALLS Team | v1.9 | 2026-04-01*
-*Áp dụng cho tất cả Solo Agents trong hệ sinh thái FEOFALLS*
-
+*Arc - Builder | FEOFALLS Team | v1.9 | 2026-04-01*  
+*Applicable to all Solo Agents within the FEOFALLS ecosystem*

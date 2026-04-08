@@ -1,37 +1,37 @@
-# FEOFALLS MEMO: Cập nhật & Tương thích với OpenClaw v2026.4.x
-**Người nhận:** Arc - Builder & FEOFALLS Team
-**Ngày lập:** Khoảng tháng 04/2026
-**Chủ đề:** Xử lý rủi ro phân mảnh luồng quản lý tác vụ (Task Management Redundancy)
+# FEOFALLS MEMO: OpenClaw v2026.4.x Update & Compatibility
+**Recipient:** Arc - Builder & FEOFALLS Team  
+**Date:** Circa April 2026  
+**Subject:** Mitigating Task Management Redundancy and Workflow Fragmentation
 
 ---
 
-## 1. Bối Cảnh (Context)
-Trong đợt phát hành mới nhất của OpenClaw (phiên bản v2026.4.x), nền tảng này đã ra mắt một tính năng quản lý tác vụ tích hợp trực tiếp trên giao diện chat (native `/tasks` board) nhằm hỗ trợ người dùng theo dõi và điều phối bot thực thi background task. 
+## 1. Context
+In the latest release of OpenClaw (v2026.4.x), the platform introduced a native task management feature directly within the chat interface (the native `/tasks` board). This feature is designed to help users track and coordinate agents executing background tasks.
 
-Tuy nhiên, cải tiến này sinh ra **sự chồng chéo trực tiếp** đối với cấu trúc `Architecture_Hybrid v1.9` mà FEOFALLS đang sử dụng. 
+However, this enhancement creates **direct redundancy** and conflict with the `Architecture_Hybrid v1.9` structure currently utilized by FEOFALLS.
 
-## 2. Rủi Ro Xung Đột (The Conflict)
-Hiện tại, kiến trúc v1.9 lấy hệ thống local file làm trung tâm (Single Source-of-Truth). Luồng quản lý Task hiện thời nằm ở:
-1. `5_WORKING_STATE/ACTIVE_TASKS.json` 
-2. Các entry bộ nhớ dạng `[CRON_LOG]` 
+## 2. The Conflict & Risk
+Currently, the v1.9 architecture is fundamentally centered around the local file system (acting as the Single Source of Truth). The existing task management flow resides in:
+1. `5_WORKING_STATE/ACTIVE_TASKS.json`
+2. Memory entries categorized as `[CRON_LOG]`
 
-**Rủi ro:** 
-Nếu Agent hoặc Creator sử dụng song song cả tính năng `/tasks` của OpenClaw native và `ACTIVE_TASKS.json` của v1.9, hệ thống sẽ gặp tình trạng "chia rẽ não bộ" (State Desynchronization) — Agent có thể đang thực hiện một task trong JSON nhưng bảng native board lại báo rỗng (hoặc ngược lại).
+**Risk of Desynchronization:** 
+If an Agent or Creator simultaneously utilizes both the OpenClaw native `/tasks` feature and the internal `ACTIVE_TASKS.json`, the system will suffer from "split-brain" syndrome (State Desynchronization) — for example, an Agent might be actively executing a task defined in the JSON file while the native board appears completely empty (or vice versa).
 
-## 3. Gợi ý hướng giải quyết định tuyến (Recommendations) 
+## 3. Recommended Actions (Routing Solutions)
 
-Đội ngũ phát triển cần tổ chức một buổi Reflection hoặc bổ sung thêm quy tắc vào `AGENT_OPERATIONAL_GUIDE_v1.9.md` với 1 trong 2 hướng giải quyết sau:
+The development team needs to hold a Reflection session or append a new rule to `AGENT_OPERATIONAL_GUIDE_v1.9.md` adopting one of the following two approaches:
 
-### Lựa chọn A: Vô hiệu hóa tính năng Native (Giữ nguyên v1.9)
-Bảo lưu quan điểm bảo thủ và sự toàn vẹn của File System. 
-- **Hành động:** Viết thêm một quy tắc cứng (Hard Constraint) vào Shadow Evaluator cấm Agent tương tác với native framework board của OpenClaw. 
-- **Ưu điểm:** Không làm tăng Complexity Budget, mã nguồn thuần túy không bị phụ thuộc vào sự phình to của chính OpenClaw Gateway. Giữ vững triết lý "Source of truth duy nhất là file nội bộ".
+### Option A: Disable Native Features (Preserve v1.9 Integrity)
+Maintains a conservative approach and preserves file system integrity.
+- **Action:** Introduce a Hard Constraint into the Shadow Evaluator, explicitly prohibiting the Agent from interacting with OpenClaw's native framework board.
+- **Pros:** Does not increase the Complexity Budget. Keeps the pure codebase independent from the bloating of the OpenClaw Gateway itself. Upholds the philosophy that "The filesystem is the sole source of truth."
 
-### Lựa chọn B: Xây dựng Bridge Wrapper (Đồng bộ hóa 2 chiều)
-Sử dụng điểm mạnh UI/UX của bản OpenClaw v2026.4.x mà không bỏ rơi logic của v1.9.
-- **Hành động:** Cập nhật script write engine sao cho mỗi khi file `ACTIVE_TASKS.json` có sự thay đổi, một `Tool_Harness_Layer` wrapper nhỏ sẽ được gọi để bắn payload (API / Event) cập nhật tương ứng lên `/tasks` board của OpenClaw. 
-- **Ưu điểm:** Creator có thể dễ dàng quản lý Agent qua UI trực quan của ứng dụng nhắn tin trong khi hệ thống bên dưới vẫn duy trì các block Deterministic RAG chuẩn mực.
-- **Nhược điểm:** Tiêu tốn thêm 1 slot cho Tool Call, cần FEOFALLS team phải code giao thức đồng bộ (sync protocol).
+### Option B: Build a Bridge Wrapper (Two-Way Synchronization)
+Leverages the robust UI/UX of OpenClaw v2026.4.x without abandoning the logic of v1.9.
+- **Action:** Update the write engine script so that whenever `ACTIVE_TASKS.json` is modified, a discrete `Tool_Harness_Layer` wrapper is invoked to fire an API/Event payload, correspondingly updating the native `/tasks` board on OpenClaw.
+- **Pros:** Allows Creators to effortlessly manage Agents via an intuitive messaging UI, while the underlying system maintains standardized Deterministic RAG blocks.
+- **Cons:** Consumes an additional Tool Call slot and requires the FEOFALLS team to code a robust synchronization protocol.
 
 ---
-*Ghi nhận: Hãy chốt 1 trong 2 giải pháp trước khi rollout diện rộng để tránh Agent bị rơi vào trạng thái bối rối khi thực hiện Memory Update.*
+*Note: Please finalize one of the two solutions before a widespread rollout to prevent Agents from encountering operational confusion during Memory Updates.*

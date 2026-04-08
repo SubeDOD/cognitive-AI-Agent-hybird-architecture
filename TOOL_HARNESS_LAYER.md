@@ -1,44 +1,40 @@
-# TOOL_HARNESS_LAYER.md – v1.901
-**Cross-cutting Tool Management Layer — Supply Chain Hardened + Write Protocol Automation**
-**Áp dụng cho:** Tất cả Solo Agent trong hệ sinh thái FEOFALLS
-**Phiên bản:** v1.901
-**Tác giả:** Arc - Builder (FEOFALLS Team)
-**Ngày tạo:** 2026-04-01
-**Ngày cập nhật:** 2026-04-03
-**Nguồn gốc:** v1.9 + Write Protocol Automation Patch
-**Cơ sở vá lỗi:** v1.9 supply chain patches + Poan protocol drift incident (2026-04-03) → tự động hóa Write Protocol
+# TOOL_HARNESS_LAYER.md
+**Cross-cutting Tool Management Layer — Supply Chain Hardened + Write Protocol Automation**  
+**Applies to:** All Solo Agents within the FEOFALLS ecosystem  
+**Author:** Arc - Builder (FEOFALLS Team)  
+**Date Updated:** 2026-04-03  
 
 ---
 
-## 1. Mục đích
+## 1. Purpose
 
-Chuẩn hoá mọi tool interaction thành **một điểm vào duy nhất** thay vì gọi bash scripts rải rác.
+Standardize all tool interactions by strictly channeling them through **a single entry point** to replace scattered bash script executions.
 
-**Lợi ích:**
-- **Logging tự động:** Mọi tool call được ghi vào session metadata (TOOL_CALLS field trong LOG_SCHEMA v1.9)
-- **Permission control:** Ngăn agent gọi tool vượt quyền (ví dụ: sửa Constitution)
-- **Cost tracking:** Đếm số tool calls per session → giúp Session Intelligence estimate budget
-- **Error handling:** Wrapper bắt lỗi, retry, và fallback thay vì crash
-- **[MỚI v1.9] Integrity verification:** Xác minh hash SHA-256 của script trước khi execute
-- **[MỚI v1.9] Dependency audit:** Khai báo và kiểm tra dependency chain của mỗi tool
-- **[MỚI v1.9] Hard enforcement:** Chặn hoàn toàn tool không đăng ký (không passthrough)
+**Core Benefits:**
+- **Automated Logging:** Every tool call is automatically logged into the session metadata (`TOOL_CALLS` field).
+- **Permission Governance:** Prohibits agents from executing restricted tools (e.g., rewriting the Constitution).
+- **Financial Tracking:** Calculates precise tool utilization counts per session.
+- **Resilient Execution:** Wrappers inherently intercept failures, engage retry loops, and initiate smooth fallbacks.
+- **Integrity Verification:** Authenticates the SHA-256 hash of a designated script prior to runtime.
+- **Dependency Auditing:** Declares and independently verifies the exact dependency chains tied to each tool.
+- **Hard Enforcement:** Utterly blocks the execution of unregistered tools (Zero passthrough).
 
 ---
 
-## 2. Tool Registry
+## 2. Tool Registry Configuration
 
-Khai báo mọi tool mà agent được phép sử dụng.
+Formally map every executable tool authorized for the agent.
 
-**Format:** `tool_registry.json` (đặt tại `memory/4_OPERATIONAL_DATA/rag/`)
+**Format:** `tool_registry.json` (Residing at `memory/4_OPERATIONAL_DATA/rag/`)
 
 ```json
 {
-  "version": "1.901",
+  "version": "1.9",
   "strict_mode": true,
   "tools": [
     {
       "name": "poan_writer",
-      "description": "[MỚI v1.901] Automated Write Protocol — sinh NODE_ID + inject metadata + reindex trong 1 lệnh",
+      "description": "Automated Write Protocol — generates NODE_ID + injects metadata + initiates reindex universally",
       "script": "skills/writer/poan_writer.py",
       "sha256": "PENDING_HASH",
       "permission": "any_agent",
@@ -46,74 +42,74 @@ Khai báo mọi tool mà agent được phép sử dụng.
       "dependencies": [],
       "input_schema": {
         "type": "string (optional) — memory type, default: auto",
-        "keyword": "string (optional) — auto-detect từ filename nếu bỏ trống",
-        "file": "string — 1 file path",
-        "batch": "string — directory path (chạy trên tất cả .md)",
-        "tags": "string (optional) — comma-separated",
-        "dry-run": "bool (optional) — preview không ghi"
+        "keyword": "string (optional) — auto-detect from filename if vacant",
+        "file": "string — 1 explicit file path",
+        "batch": "string — directory path (executes across all localized .md files)",
+        "tags": "string (optional) — comma-separated array",
+        "dry-run": "bool (optional) — diagnostic preview"
       },
-      "output": "report (injected/skipped/error per file)"
+      "output": "structured report (injected/skipped/error per file)"
     },
     {
       "name": "poan_crawler",
-      "description": "[MỚI v1.9] Zero-dependency web crawler — HTML → Markdown",
+      "description": "Zero-dependency web crawler — converts HTML directly to Markdown",
       "script": "skills/crawler/poan_crawler.py",
       "sha256": "PENDING_HASH",
       "permission": "any_agent",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {
-        "url": "string (required) — URL cần crawl",
-        "output": "string (optional) — file path đầu ra",
-        "markdown": "bool (optional) — chỉ trả markdown thuần"
+        "url": "string (required) — URL assigned for crawling",
+        "output": "string (optional) — output file path destination",
+        "markdown": "bool (optional) — confines response strictly to raw markdown"
       },
-      "output": "JSON với markdown + metadata + content hash"
+      "output": "JSON containing markdown body + metadata + explicit content hash"
     },
     {
       "name": "write_helper",
-      "description": "Sinh NODE_ID deterministic từ TYPE + KEYWORD và ghi file memory",
+      "description": "Deterministic NODE_ID generation from TYPE + KEYWORD resulting in file commitment",
       "script": "memory/4_OPERATIONAL_DATA/rag/write_helper.py",
       "sha256": "a1b2c3d4e5f6...signing_hash_here",
       "permission": "any_agent",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {
-        "type": "string (required) — memory type prefix",
-        "keyword": "string (required) — max 5 từ, không ký tự đặc biệt",
-        "content": "string (optional) — snippet nội dung để hash"
+        "type": "string (required) — structural memory prefix",
+        "keyword": "string (required) — string limited to 5 words, devoid of special symbols",
+        "content": "string (optional) — body snippet required for hash construction"
       },
-      "output": "NODE_ID string"
+      "output": "Calculated NODE_ID string"
     },
     {
       "name": "reindex_file",
-      "description": "Hot re-index một file sau khi write",
+      "description": "Rapid hot re-index initiated subsequently to a successful file write",
       "script": "memory/4_OPERATIONAL_DATA/rag/reindex_file.sh",
       "sha256": "b2c3d4e5f6g7...signing_hash_here",
       "permission": "any_agent",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {
-        "file_path": "string (required) — đường dẫn file cần reindex"
+        "file_path": "string (required) — path routing to target file"
       },
-      "output": "exit code 0/1"
+      "output": "Standard exit code 0/1"
     },
     {
       "name": "query",
-      "description": "Cognitive Retrieval Pipeline — search, expand, confidence propagation",
+      "description": "Cognitive Retrieval Pipeline — coordinates search, data expansion, and confidence propagation loops",
       "script": "memory/4_OPERATIONAL_DATA/rag/query.py",
       "sha256": "c3d4e5f6g7h8...signing_hash_here",
       "permission": "any_agent",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {
-        "query": "string (required) — câu hỏi tìm kiếm",
-        "deep_reasoning": "bool (optional) — kích hoạt Deep Dive mode"
+        "query": "string (required) — designated search structure",
+        "deep_reasoning": "bool (optional) — activates Deep Dive mode configurations"
       },
-      "output": "ranked chunks + confidence scores"
+      "output": "ranked structural chunks + correlated confidence scores"
     },
     {
       "name": "nightly_indexer",
-      "description": "Lifecycle sweep, salience update, consolidation, archive",
+      "description": "Lifecycle sweeps, computational salience updates, node consolidation, and systematic archival operations",
       "script": "memory/4_OPERATIONAL_DATA/rag/nightly_indexer.py",
       "sha256": "d4e5f6g7h8i9...signing_hash_here",
       "permission": "system_only",
@@ -122,22 +118,22 @@ Khai báo mọi tool mà agent được phép sử dụng.
       "input_schema": {
         "flags": "string (optional) — --update-salience --check-consolidation --migrate"
       },
-      "output": "report text"
+      "output": "execution report text"
     },
     {
       "name": "weekly_graph_validator",
-      "description": "Cycle detection, dangling edges, alias integrity, node explosion check",
+      "description": "Cycle detection mapping, neutralization of dangling edges, alias integrity checks, and nodal explosion tracking",
       "script": "memory/4_OPERATIONAL_DATA/rag/weekly_graph_validator.py",
       "sha256": "e5f6g7h8i9j0...signing_hash_here",
       "permission": "system_only",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {},
-      "output": "graph health report"
+      "output": "graph status health report"
     },
     {
       "name": "parity_audit",
-      "description": "So sánh spec documents với implementation thực tế + dependency integrity check",
+      "description": "Cross-reference specification documentation with hardcoded physical implementation files + dependency evaluations",
       "script": "memory/4_OPERATIONAL_DATA/rag/parity_audit.py",
       "sha256": "f6g7h8i9j0k1...signing_hash_here",
       "permission": "system_only",
@@ -146,51 +142,51 @@ Khai báo mọi tool mà agent được phép sử dụng.
       "input_schema": {
         "mode": "string (optional) — --full | --quick | --deps-only"
       },
-      "output": "gap report (LOW/MEDIUM/CRITICAL)"
+      "output": "explicit gap report evaluating LOW/MEDIUM/CRITICAL discrepancies"
     },
     {
       "name": "compact_session",
-      "description": "Compact transcript khi vượt turn limit",
+      "description": "Transcription compaction deployed when session limits surpass defined thresholds",
       "script": "internal",
       "sha256": "INTERNAL_NO_HASH",
       "permission": "system_only",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {
-        "keep_recent_turns": "int (required) — số turns gần nhất giữ nguyên"
+        "keep_recent_turns": "int (required) — quantity of localized turns shielded from summary condensation"
       },
-      "output": "compacted transcript"
+      "output": "compacted structured transcript"
     },
     {
       "name": "constitution_edit",
-      "description": "Sửa đổi Layer 0 (Constitution) — CẦN CREATOR CONFIRM",
+      "description": "Modify Core Layer 0 parameters (Constitution) — MANDATES ABSOLUTE CREATOR CONFIRMATION",
       "script": "manual",
       "sha256": "MANUAL_NO_HASH",
       "permission": "creator_only",
       "isolation": "native",
       "dependencies": [],
       "input_schema": {
-        "file": "string (required) — file trong 0_CONSTITUTION/",
-        "change_description": "string (required) — mô tả thay đổi"
+        "file": "string (required) — target document seated within 0_CONSTITUTION/",
+        "change_description": "string (required) — defined parameters delineating modification scope"
       },
-      "output": "Creator approval status"
+      "output": "Creator authorization status"
     }
   ]
 }
 ```
 
-### 2.1 Trường mới trong v1.9
+### 2.1 Essential Sub-Fields
 
-| Trường | Kiểu | Bắt buộc | Mô tả |
-|--------|------|----------|-------|
-| `sha256` | string | ✅ | SHA-256 hash của script file. Agent PHẢI verify trước execute. Dùng `INTERNAL_NO_HASH` cho built-in, `MANUAL_NO_HASH` cho manual tools |
-| `dependencies` | array | ✅ | Danh sách pip/npm packages mà tool yêu cầu, pin version chính xác. `[]` = không có dependency bên ngoài (an toàn nhất) |
-| `isolation` | string | ✅ | `native` = chạy trực tiếp trên host, `docker` = chạy trong container cách ly, `sandbox` = chạy trong sandbox restricted |
-| `strict_mode` | bool | ✅ (ở root) | `true` = BLOCK tool không đăng ký. `false` = passthrough (chỉ dùng khi migrate) |
+| Field | Type | Mandatory | Description |
+|-------|------|-----------|-------------|
+| `sha256` | string | ✅ | The calculated SHA-256 hash identifying the isolated script file. Verification occurs forcefully prior to execution. Utilize `INTERNAL_NO_HASH` or `MANUAL_NO_HASH` for internal/manual bypass states. |
+| `dependencies` | array | ✅ | Definitive lists of required pip/npm packages. Exact versions must remain locked. `[]` equates to zero external integration (optimal security). |
+| `isolation` | string | ✅ | `native` = local host execution, `docker` = constrained container runtime, `sandbox` = deeply restricted isolation boundary. |
+| `strict_mode` | bool | ✅ (Root) | `true` = Exclusively blocks unregistered tools. `false` = Authorized passthrough (utilized specifically during architecture migrations). |
 
 ### 2.2 Dependency Declaration Format
 
-Khi tool có external dependencies:
+When a specific tool invokes an external dependency array:
 
 ```json
 {
@@ -206,51 +202,51 @@ Khi tool có external dependencies:
 }
 ```
 
-> **Quy tắc dependency v1.9:**
-> 1. Mọi dependency PHẢI pin exact version (`==`, không dùng `>=` hay `~=`)
-> 2. Mọi dependency PHẢI có `sha256` hash của package archive
-> 3. Dependency mới PHẢI được Creator approve trước khi thêm vào registry
-> 4. Tool có `dependencies: []` luôn được ưu tiên hơn tool có dependencies (attack surface = 0)
-> 5. Tool có dependencies PHẢI chạy `isolation: "docker"` hoặc `"sandbox"` — KHÔNG ĐƯỢC chạy `"native"`
+> **Dependency Defense Protocols:**
+> 1. All invoked dependencies MUST utilize pinned versions (`==`, avoiding fuzzy parameters like `>=` or `~=`).
+> 2. All invoked dependencies MUST possess an established `sha256` cryptographic hash.
+> 3. Introducing a newly generated dependency MANDATES explicit Creator authorization.
+> 4. Tools possessing `dependencies: []` naturally assume higher operational priority (Zero structural attack variance).
+> 5. Tools wielding dependencies MUST execute specifically atop `isolation: "docker"` or `"sandbox"` parameters — `native` operation is strictly barred.
 
 ---
 
 ## 3. Permission Matrix
 
-| Permission Level | Ai được gọi | Ví dụ tools | Ghi chú |
-|------------------|-------------|-------------|---------|
-| `any_agent` | Agent chính (trong mọi mode) | write_helper, reindex_file, query | Gọi tự do, chỉ cần Shadow Evaluator pass |
-| `system_only` | Orchestrator / Cron jobs | nightly_indexer, weekly_graph_validator, parity_audit, compact_session | **[v1.9] HARD BLOCK** nếu caller không phải system/cron |
-| `creator_only` | Creator trực tiếp xác nhận | constitution_edit | Agent đề xuất → Creator approve → mới execute |
+| Permission Level | Operational Authority | Tool Application | Caveats |
+|------------------|-----------------------|------------------|---------|
+| `any_agent` | Primary operating agent | write_helper, reindex_file, query | Unrestricted provided the Shadow Evaluator signifies approval. |
+| `system_only` | Subsystem Orchestrator / Automated Cron routines | nightly_indexer, weekly_graph_validator, parity_audit | Automatically triggers **HARD BLOCK** mechanisms if the caller deviates from established systemic cron parameters. |
+| `creator_only` | Validated human Creator explicitly verifying steps | constitution_edit | The executing agent drafts the modification scenario → Formally awaits Creator's final binding approval before proceeding. |
 
-**Enforcement (v1.9 — HARDENED):**
-- Agent gọi tool `system_only` ngoài cron event → **BLOCK** + log `[SECURITY: unauthorized system_only call]` ← **thay đổi từ v1.8 (soft → hard)**
-- Agent gọi tool `creator_only` → **BLOCK** + gửi đề xuất đến Creator
-- **[MỚI v1.9] Tool không có trong registry → BLOCK** + log `[SECURITY: unregistered tool blocked]` + ALERT Creator ← **breaking change từ v1.8**
-- **[MỚI v1.9] SHA-256 mismatch → BLOCK** + log `[SECURITY: integrity check failed]` + ALERT Creator
+**System Enforcement Parameters:**
+- Interfacing with a `system_only` module from outside Cron channels → Dispatches a **BLOCK** signal + archives `[SECURITY: unauthorized system_only call]`.
+- Attempting usage of `creator_only` features unilaterally → Dispatches a **BLOCK** signal + formulates a propositional dispatch directed to the Creator.
+- Encountering tools absent from current registry mapping → Dispatches a **BLOCK** signal + archives `[SECURITY: unregistered tool blocked]` + Triggers acute external alerts.
+- Validating a flawed `SHA-256` parameter → Dispatches a **BLOCK** signal + archives `[SECURITY: integrity check failed]` + Engages lockdown protocols.
 
 ---
 
-## 4. Execution Wrapper
+## 4. Execution Wrapper Architecture
 
-**Pseudocode `harness_execute()` — v1.9 Hardened:**
+**Internal structural logic driving `harness_execute()`:**
 
 ```python
 import hashlib
 
 def harness_execute(tool_name: str, caller: str, params: dict) -> Result:
     # ═══════════════════════════════════════════
-    # PHASE 1: GATE — Trước khi chạy bất kỳ thứ gì
+    # PHASE 1: GATE — Verification Checks prior to sequence initialization
     # ═══════════════════════════════════════════
     
-    # 1. Registry check — HARD BLOCK (v1.9)
+    # 1. Verification of Registry parameters — HARD BLOCK mechanism
     tool = registry.get(tool_name)
     if tool is None:
         log_security(f"UNREGISTERED TOOL BLOCKED: {tool_name}")
         alert_creator(f"Agent attempted to run unregistered tool: {tool_name}")
         return Result(status="BLOCKED", reason="Tool not in registry")
     
-    # 2. Permission check — HARD BLOCK (v1.9)
+    # 2. Scrutiny of systemic Permissions — HARD BLOCK mechanism
     if tool.permission == "creator_only" and caller != "creator":
         return Result(status="BLOCKED", reason="Requires Creator approval")
     
@@ -258,7 +254,7 @@ def harness_execute(tool_name: str, caller: str, params: dict) -> Result:
         log_security(f"UNAUTHORIZED system_only call: {tool_name} by {caller}")
         return Result(status="BLOCKED", reason="system_only tool called by non-system")
     
-    # 3. Integrity check — SHA-256 verification (v1.9 NEW)
+    # 3. Calculation of Integrity Parameters — SHA-256 verification
     if tool.sha256 not in ["INTERNAL_NO_HASH", "MANUAL_NO_HASH"]:
         actual_hash = sha256_file(tool.script)
         if actual_hash != tool.sha256:
@@ -267,7 +263,7 @@ def harness_execute(tool_name: str, caller: str, params: dict) -> Result:
             return Result(status="BLOCKED", reason="Integrity check failed")
     
     # ═══════════════════════════════════════════
-    # PHASE 2: EXECUTE — Chỉ khi pass tất cả gates
+    # PHASE 2: EXECUTION SEQUENCE — Cleared operational routing
     # ═══════════════════════════════════════════
     
     start_time = now()
@@ -276,14 +272,14 @@ def harness_execute(tool_name: str, caller: str, params: dict) -> Result:
             result = execute_in_container(tool.script, params)
         elif tool.isolation == "sandbox":
             result = execute_in_sandbox(tool.script, params)
-        else:  # native
+        else:  # native operational pathway
             result = execute(tool.script, params)
     except Exception as e:
         log_error(f"Tool {tool_name} failed: {e}")
         return Result(status="ERROR", error=str(e))
     
     # ═══════════════════════════════════════════
-    # PHASE 3: LOG — Ghi lại mọi thứ đã xảy ra
+    # PHASE 3: METRIC LOGGING — Compilation of systematic histories
     # ═══════════════════════════════════════════
     
     duration = now() - start_time
@@ -302,9 +298,8 @@ def harness_execute(tool_name: str, caller: str, params: dict) -> Result:
     
     return result
 
-
 def sha256_file(filepath: str) -> str:
-    """Tính SHA-256 hash của file."""
+    """Computes SHA-256 explicit hashes derived from file contents."""
     h = hashlib.sha256()
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -314,53 +309,25 @@ def sha256_file(filepath: str) -> str:
 
 ---
 
-## 5. Isolation Modes (v1.9 NEW)
+## 5. Isolation Modes
 
-| Mode | Mô tả | Khi nào dùng |
-|------|--------|-------------|
-| `native` | Chạy trực tiếp trên host filesystem | Chỉ cho tools **không có external dependencies** (`dependencies: []`) |
-| `docker` | Chạy trong Docker container riêng | Tools có external dependencies (ví dụ: crawl4ai, playwright) |
-| `sandbox` | Chạy trong restricted sandbox (no network, no filesystem write ngoài output) | Tools thử nghiệm chưa được Creator fully approve |
+| Modal Designation | Functional Outline | Integration Scenarios |
+|-------------------|--------------------|-----------------------|
+| `native` | Integrates directly upon the native host filesystem constraints. | Employed solely for tools explicitly lacking external dependency components (`dependencies: []`). |
+| `docker` | Traps execution firmly within isolated Docker containment limits. | Mandatory for operations requiring external package integrations (e.g., crawl4ai, playwright). |
+| `sandbox` | Establishes restricted operational testing conditions (no outward networking, writing confined solely to output). | Compulsory for newly formulated tools awaiting definitive Creator clearance. |
 
-> **Quy tắc isolation v1.9:**
-> - `dependencies: []` + `isolation: "native"` → ✅ Cho phép
-> - `dependencies: [...]` + `isolation: "native"` → ❌ **BLOCK** — Supply chain risk
-> - `dependencies: [...]` + `isolation: "docker"` → ✅ Cho phép (cách ly filesystem)
-> - Tool mới chưa qua audit → `isolation: "sandbox"` bắt buộc
-
----
-
-## 6. Migration từ v1.8 → v1.9
-
-### Breaking Changes
-
-| Thay đổi | v1.8 | v1.9 | Ảnh hưởng |
-|----------|------|------|-----------|
-| Tool không đăng ký | Passthrough (chạy + warning) | **BLOCK** | Agents phải đăng ký mọi tool vào registry trước khi dùng |
-| system_only enforcement | Soft (warning + chạy) | **HARD BLOCK** | Cron jobs phải declare caller = "system" |
-| SHA-256 required | Không có | Bắt buộc | Mỗi script phải có hash trong registry |
-| dependencies field | Không có | Bắt buộc | Khai báo `[]` nếu không có dependency |
-| isolation field | Không có | Bắt buộc | Mặc định `"native"` cho tools hiện có |
-
-### Quy trình migration
-
-```bash
-# 1. Sinh SHA-256 hash cho mọi script hiện có
-cd memory/4_OPERATIONAL_DATA/rag/
-for f in *.py *.sh; do
-  echo "\"sha256\": \"$(sha256sum $f | cut -d' ' -f1)\"  # $f"
-done
-
-# 2. Cập nhật tool_registry.json với hash + dependencies + isolation
-# 3. Set strict_mode: true
-# 4. Test — chạy mỗi tool qua harness, verify không bị block sai
-```
+> **Operational Isolation Parameters:**
+> - `dependencies: []` + `isolation: "native"` → ✅ Operates flawlessly.
+> - `dependencies: [...]` + `isolation: "native"` → ❌ **INITIATES SYSTEM BLOCK** — Definite Supply Chain vulnerability detected.
+> - `dependencies: [...]` + `isolation: "docker"` → ✅ Operates flawlessly (File access fundamentally segregated).
+> - Newly structured tools evading exhaustive audits → Compulsorily mandate `isolation: "sandbox"` requirements.
 
 ---
 
-## 7. Session Tool Log Format
+## 6. Session Tool Formatting Matrix
 
-Mỗi session kết thúc, ghi summary vào metadata:
+Closing session sequences automatically assemble systemic histories targeting dimensional logging protocols:
 
 ```yaml
 session_tool_summary:
@@ -373,21 +340,21 @@ session_tool_summary:
   total_duration_ms: 3200
 ```
 
-Dữ liệu này được ghi vào `TOOL_CALLS` field trong LOG_SCHEMA v1.9 khi tạo memory entry.
+Metadata compiles directly into the defined `TOOL_CALLS` location standardizing memory structures.
 
 ---
 
-## 8. Lưu ý quan trọng
+## 7. Crucial Security Mandates
 
-- Tool Harness là **cross-cutting layer** — không tính vào Complexity Budget 9/9
-- Registry là **khai báo**, không phải code — Nexus/agent tự implement wrapper phù hợp runtime
-- **[v1.9] Permission enforcement là HARD** — BLOCK thay vì warning (trừ `any_agent`)
-- **[v1.9] Backward compatibility bị loại bỏ có chủ đích** — an toàn > tiện lợi
-- **[v1.9] Tool có external dependencies PHẢI chạy trong Docker/Sandbox** — không bao giờ native
-- **[v1.9] Mọi script PHẢI có SHA-256 hash** — tampered file = BLOCK ngay lập tức
-- **[v1.9] Thêm dependency mới = CẦN CREATOR APPROVE** — không tự ý thêm package
+- Cross-cutting operations remain categorically separate extending no impact upon defined Complexity Budgets.
+- The established Registry acts firmly as a structured definition list—Nexus/agent frameworks assume responsibility executing practical runtime applications.
+- Subverting permission parameters directly generates a comprehensive **SYSTEM BLOCK** avoiding weak warnings completely.
+- Compatibility concessions compromising baseline security features are permanently terminated by explicit design.
+- The foundational execution of non-native elements absolutely forces integration inside localized Sandbox or Docker environments—native exposure runs zero tolerance levels.
+- The absolute calculation of exact `SHA-256` hashes upon execution ranks non-negotiable—maliciously subverted parameters initiate an overarching system freeze immediately.
+- Expansion of integrated system packages necessitates comprehensive Creator Authorization before activation overrides apply.
 
 ---
 
-*Arc - Builder | FEOFALLS Team | v1.9 | 2026-04-02*
-*Supply Chain Hardened — Cross-cutting layer — không tính vào Complexity Budget*
+*Arc - Builder | FEOFALLS Team*  
+*Supply Chain Hardened — Cross-cutting architecture layer*

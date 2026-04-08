@@ -1,420 +1,256 @@
 # ARCHITECTURE_HYBRID.md
-## Agent Institutional Solo v1.9 – Native OpenClaw Integration
-**Tác giả:** Arc - Builder (FEOFALLS Team)
-**Phiên bản chính thức:** v1.9
-**Áp dụng cho:** Tất cả Solo Agent OpenClaw (ATLAS agents xem ATLAS_Architecture_v1.0.md)
-**Ngày cập nhật:** 2026-04-02
-**Cơ sở:** v1.8 | Nâng cấp với Supply Chain Hardening (SHA-256 integrity, isolation modes, dependency audit)
+## Agent Institutional Solo – Native OpenClaw Integration
+**Author:** Arc - Builder (FEOFALLS Team)  
+**Official Version:** v1.9  
+**Applies to:** All Solo Agents within OpenClaw  
+**Date Updated:** 2026-04-02  
 
 ---
 
-## I. Tóm tắt thay đổi so với v1.723
+## I. Core Architecture Features
 
-| Hạng mục | v1.723 | v1.9 |
-|---|---|---|
-| Tool Management | Script rải rác (write_helper, query, reindex) | **Tool Harness Layer** (cross-cutting — registry + permission + wrapper) |
-| Spec Integrity | Không có mechanism phát hiện gap | **Parity Audit** (weekly spec-vs-implementation check) |
-| Session Budget | Không tracking | **Session Intelligence** (token budget + transcript compaction) |
-| Output Retry | LLM output sai → block | **Structured Output Retry** (2 repair attempts trước khi block) |
-| Shadow Evaluator | Prose description | **Formalized** (Input/Output Schema rõ ràng) |
-| Memory Types | 13 types | 14 types (thêm **[OBSERVATION]**) |
-| Log Schema | v1.723 fields | Thêm 3 metadata: TOOL_CALLS, SESSION_TOKENS, PARITY_STATUS |
-| Cron Jobs | 3 jobs chuẩn | 4 jobs (thêm **Parity Audit** weekly) |
-| Checklist | 7 items | **9 items** (thêm Tool Harness Check + Session Budget) |
-| Phạm vi | Universal — mọi agent | Universal — **Solo agents** (ATLAS agents dùng ATLAS v1.0) |
-| **[MỚI v1.9]** Supply Chain Defense | Không có | **SHA-256 integrity + dependency pinning + isolation modes** |
-| **[MỚI v1.9]** Enforcement mode | Soft (passthrough) | **Hard BLOCK** (tool không đăng ký = chặn) |
+| Component | Description |
+|-----------|-------------|
+| **Tool Management** | **Tool Harness Layer** — Centralized registry + strict permission matrix + universal execution wrapper. |
+| **Specification Integrity** | **Parity Audit** — Weekly automated spec-vs-implementation gap detection. |
+| **Session Tracking** | **Session Intelligence** — Intensive token budget tracking coupled with dynamic transcript compaction. |
+| **Output Evaluation** | **Structured Output Retry** — Engages auto-repair parameters prior to invoking system blocks. |
+| **Shadow Evaluator** | Governed strictly by formalized Input/Output schema definitions. |
+| **Memory Dimensions** | Encompasses 14 discrete structural types (inclusive of `[OBSERVATION]`). |
+| **Metadata Metrics** | Core telemetry features integrated (e.g., `TOOL_CALLS`, `SESSION_TOKENS`, `PARITY_STATUS`). |
+| **Autonomous Scheduling** | Driven entirely via 4 standard OpenClaw native cron configurations. |
+| **Supply Chain Defense** | **SHA-256 integrity protocols + dependency version pinning + strict isolation environments (Docker/Sandbox).** |
+| **Enforcement Posture** | **Hard BLOCK protocol** — Unregistered/unauthorized tools inherently trigger absolute halts. |
 
 ---
 
-## II. Cấu trúc thư mục (Universal Template)
+## II. Directory Blueprint (Universal Template)
 
 ```
 <workspace>/
 ├── memory/
-│   ├── 0_CONSTITUTION/              ← Immutable foundation (PINNED/IMMUNABLE – không bao giờ decay)
-│   │   ├── AXIOMS.md                    # 5–7 giá trị cốt lõi tối thượng
-│   │   ├── BOUNDARIES.md                # Những điều tuyệt đối cấm (hard boundaries)
-│   │   ├── OBJECTIVE_HIERARCHY.md       # Thứ tự ưu tiên mục tiêu dài hạn
-│   │   ├── CREATOR_AUTHORITY.md         # Quyền tối cao của Creator (override mọi layer)
-│   │   ├── PERMISSION_MATRIX.md         # Quyền đọc/ghi từng layer (governance matrix)
-│   │   ├── CANONICAL_INTERPRETATIONS.md # Giải thích chính thức mỗi axiom (chống drift)
-│   │   └── CONSTRAINT_TEST_SUITE.md     # Bộ test tự động kiểm tra model mới có vi phạm không
+│   ├── 0_CONSTITUTION/              ← Immutable foundation (PINNED/IMMUTABLE – zero decay)
+│   │   ├── AXIOMS.md                    # Unbreakable core values
+│   │   ├── BOUNDARIES.md                # Absolute hard limits
+│   │   ├── OBJECTIVE_HIERARCHY.md       # Long-term objective prioritization
+│   │   ├── CREATOR_AUTHORITY.md         # Supreme Creator override privileges
+│   │   ├── PERMISSION_MATRIX.md         # Read/write governance matrix per layer
+│   │   ├── CANONICAL_INTERPRETATIONS.md # Official axiom clarifications (anti-drift mechanism)
+│   │   └── CONSTRAINT_TEST_SUITE.md     # Automated compliance testing for model swaps
 │   │
-│   ├── _INTEGRITY/                  ← Kiểm tra tính toàn vẹn (hash bảo vệ)
-│   │   ├── constitution.hash            # SHA256 của toàn bộ 0_CONSTITUTION/
-│   │   ├── identity.hash                # SHA256 của 1_IDENTITY/
-│   │   └── last_verified                # Timestamp lần kiểm tra hash cuối cùng
+│   ├── _INTEGRITY/                  ← Integrity verification center
+│   │   ├── constitution.hash            # Comprehensive SHA256 of 0_CONSTITUTION/
+│   │   ├── identity.hash                # Comprehensive SHA256 of 1_IDENTITY/
+│   │   └── last_verified                # Timestamp detailing the final recorded hash sweep
 │   │
-│   ├── 1_IDENTITY/                  ← Bản sắc cá nhân (PINNED – không decay)
-│   │   ├── IDENTITY_PROFILE.md          # Tóm tắt hiện tại "tôi là ai" (self-concept)
-│   │   ├── IDENTITY_LOG.md              # Lịch sử thay đổi bản sắc (append-only)
-│   │   ├── VALUE_TRADEOFFS.md           # Trade-off giá trị cốt lõi (speed vs accuracy)
-│   │   └── UNCERTAINTY_MODEL.md         # Cách xử lý uncertainty (Bayesian, hedging)
+│   ├── 1_IDENTITY/                  ← Agent Identity (PINNED – zero decay)
+│   │   ├── IDENTITY_PROFILE.md          # Current summarized self-concept
+│   │   ├── IDENTITY_LOG.md              # Historical evolution mapping (append-only)
+│   │   ├── VALUE_TRADEOFFS.md           # Value concessions (e.g., speed vs. accuracy)
+│   │   └── UNCERTAINTY_MODEL.md         # Epistemological processing models (Bayesian frameworks)
 │   │
-│   ├── 2_COGNITIVE/                 ← Operational brain – Heuristics distilled (PINNED)
+│   ├── 2_COGNITIVE/                 ← Operational Engine – Distilled heuristics (PINNED)
 │   │   ├── SKILL_MODES/
-│   │   │   ├── INDEX.md                 # Danh sách tất cả skill modes hiện có
-│   │   │   └── MODE_*.md                # Mode thực chiến (vibe, tone, style)
-│   │   ├── DECISION_STYLE.md            # Phong cách ra quyết định
-│   │   └── HEURISTICS.md                # Quy tắc ngón tay cái – distilled từ insight + signal
-│   │                                    # Chỉ Core được chỉnh tay, còn lại auto-propose từ Reflection
+│   │   │   ├── INDEX.md                 # Complete index of integrated skill modes
+│   │   │   └── MODE_*.md                # Active combat postures (vibe, tone, structural style)
+│   │   ├── DECISION_STYLE.md            # Prescriptive decision-making cadence
+│   │   └── HEURISTICS.md                # Distilled rules of thumb extracted from systemic signals
 │   │
-│   ├── 3_LEARNING/                  ← Cognitive engine – Memory + Automatic Consolidation
-│   │   ├── EPISODIC_LOG.md              # Lịch sử hành động & sự kiện (append-only)
-│   │   ├── MISTAKES.md                  # Lưu lỗi + root cause + lesson
-│   │   ├── DISSENT_ARCHIVE.md           # Lưu các lần bị phản biện hoặc Creator override
-│   │   ├── REFLECTION_CYCLES.md         # Quy trình tự phản ánh định kỳ + trigger log
-│   │   ├── HYPOTHESES/                  # File-per-hypothesis (h-YYYY-MM-DD-*.md)
-│   │   ├── EXPERIMENTS/                 # Kết quả experiment
-│   │   ├── LESSONS/                     # Bài học rút ra sau verify
-│   │   ├── FIELD_SAMPLING_DIGESTS/      # Weekly + Monthly meta-digest (friction patterns)
-│   │   ├── SIGNALS.md                   # Append-only tín hiệu bất thường (trigger reflection)
-│   │   ├── LOG_SCHEMA.md                ← v1.9 (cập nhật – thêm OBSERVATION + 3 metadata)
-│   │   └── BASELINE_HISTORY.md          # Freeze baseline khi swap model (so sánh drift)
+│   ├── 3_LEARNING/                  ← Cognitive Memory Engine + Auto-Consolidation
+│   │   ├── EPISODIC_LOG.md              # Granular action logs (append-only)
+│   │   ├── MISTAKES.md                  # Failure records paired with root cause + extracted lessons
+│   │   ├── DISSENT_ARCHIVE.md           # Log delineating Creator overrides
+│   │   ├── REFLECTION_CYCLES.md         # Cyclical self-reflection procedures
+│   │   ├── HYPOTHESES/                  # Isolated hypothesis documentation
+│   │   ├── EXPERIMENTS/                 # Recorded results defining testing variations
+│   │   ├── LESSONS/                     # Distilled learning post-verification cycles
+│   │   ├── FIELD_SAMPLING_DIGESTS/      # Weekly/Monthly friction pattern digests
+│   │   ├── SIGNALS.md                   # Append-only anomaly tracking (triggers reflections)
+│   │   ├── LOG_SCHEMA.md                # Structured constraints governing memory generation
+│   │   └── BASELINE_HISTORY.md          # Frozen comparative lines utilized during model swaps
 │   │
-│   ├── 4_OPERATIONAL_DATA/          ← Lớp dữ liệu vận hành + Cognitive RAG
-│   │   ├── MEMORY.md                    # Slim index tổng hợp (human-readable)
-│   │   ├── people/                      # Profile người liên quan
-│   │   ├── projects/                    # Project-specific memory
-│   │   ├── decisions/                   # Quyết định đã thực thi (append-only)
-│   │   ├── active.md                    # Task đang active
-│   │   └── rag/                         ← OpenClaw RAG + Cognitive enhancements
-│   │       ├── write_helper.py              # Deterministic node ID generator (short-hash + collision)
-│   │       ├── query.py                     # Cognitive Retrieval Pipeline + Circuit Breaker + alias
-│   │       ├── rag_server.py                # Server localhost:8765
-│   │       ├── nightly_indexer.py           # Lifecycle sweep + salience + consolidation
-│   │       ├── weekly_graph_validator.py     # Cycle detection + dangling check + alias integrity
-│   │       ├── cron_setup.py                ← [v1.723] đăng ký cron jobs một lần
-│   │       ├── start_rag_server.sh          # Khởi động server
-│   │       ├── reindex_file.sh              # Hot re-index sau write
-│   │       ├── archived_alias.json          # Redirect mapping cho archived nodes
-│   │       └── causal_index.json            # Derived only – auto-regenerate từ Markdown
+│   ├── 4_OPERATIONAL_DATA/          ← Functional Runtime Data + Cognitive RAG
+│   │   ├── MEMORY.md                    # Centralized human-readable indexing
+│   │   ├── people/                      # External human profiles
+│   │   ├── projects/                    # Niche contextual structures
+│   │   ├── decisions/                   # Formalized executed decisions (append-only)
+│   │   ├── active.md                    # Active running modules
+│   │   └── rag/                         ← Integral OpenClaw RAG enhancements
+│   │       ├── write_helper.py              # Deterministic node structural generator
+│   │       ├── query.py                     # Cognitive Retrieval Pipeline + Circuit Breaker
+│   │       ├── rag_server.py                # Server execution scripts
+│   │       ├── nightly_indexer.py           # Lifecycle sweep sweeps + node consolidation
+│   │       ├── weekly_graph_validator.py     # Cycle detection + dangling pointer neutralization
+│   │       ├── cron_setup.py                # Native automation implementation
+│   │       ├── start_rag_server.sh          # Server initialization
+│   │       ├── reindex_file.sh              # Rapid file re-indexing protocols
+│   │       ├── archived_alias.json          # Directed internal routing mapping
+│   │       └── causal_index.json            # Derived structural indexing cache
 │   │
-│   ├── 5_WORKING_STATE/             ← Runtime snapshot
-│   │   ├── ACTIVE_TASKS.json            # Task đang chạy
-│   │   ├── SYSTEM_STATE.json            # Trạng thái hệ thống (mode, health)
-│   │   └── CRON_REGISTRY.md             ← [v1.723+] Danh sách cron jobs đang active
+│   ├── 5_WORKING_STATE/             ← Ephemeral Runtime Snapshot
+│   │   ├── ACTIVE_TASKS.json            # Actively executed task variables
+│   │   ├── SYSTEM_STATE.json            # Prevailing system environments (health metrics)
+│   │   └── CRON_REGISTRY.md             # Functional schedule defining active cron modules
 │   │
-│   ├── TOOL_HARNESS_LAYER.md        ← [MỚI v1.9] Cross-cutting tool management
-│   ├── PARITY_AUDIT.md              ← [MỚI v1.9] Weekly spec-vs-implementation audit
+│   ├── TOOL_HARNESS_LAYER.md        ← Cross-cutting Tool Management and Permission matrix
+│   ├── PARITY_AUDIT.md              ← Weekly spec-vs-implementation gap evaluation
 │   │
-│   └── GOVERNANCE_SIMPLIFICATION/   ← Kiểm soát độ phức tạp
-│       ├── COMPLEXITY_BUDGET.md         # Danh sách cơ chế hiện tại (max 9)
-│       └── SIMPLIFICATION_CYCLES.md     # Lịch audit 90 ngày/lần
+│   └── GOVERNANCE_SIMPLIFICATION/   ← Intrinsic Complexity Controls
+│       ├── COMPLEXITY_BUDGET.md         # Restricted governance limitation protocol (max 9 distinct mechanisms)
+│       └── SIMPLIFICATION_CYCLES.md     # Regulated audit executed per 90 days
 │
-├── AGENT_OPERATIONAL_GUIDE.md       ← v1.9 (cập nhật)
-├── ARCHITECTURE_HYBRID.md           ← v1.9 (file này)
-├── HEARTBEAT.md                     ← BẮT BUỘC – checklist ngắn <20 dòng
-└── BOOT.md                          ← TÙY CHỌN – startup checklist
+│   ├── AGENT_OPERATIONAL_GUIDE.md       ← Comprehensive everyday procedural rules
+│   ├── ARCHITECTURE_HYBRID.md           ← Central structural master document (this file)
+│   ├── HEARTBEAT.md                     ← MANDATORY telemetry check (<20 lines)
+│   └── BOOT.md                          ← OPTIONAL initialization checklist
 ```
 
-### Hướng dẫn chi tiết từng thư mục và từng file (v1.9)
-
-#### 0_CONSTITUTION/ – Immutable Foundation
-Mục đích: Hiến pháp bất biến, không bao giờ decay/archive.
-Tất cả file STATE: PINNED/IMMUTABLE → nightly_indexer bỏ qua hoàn toàn.
-Nội dung cần có: nguyên tắc cốt lõi, boundary tuyệt đối, quyền Creator.
-Ví dụ thực tế: BOUNDARIES.md chứa "Không bao giờ gây hại con người".
-
-#### _INTEGRITY/ – Tính toàn vẹn
-Mục đích: Phát hiện drift hoặc tampering.
-nightly_indexer tự cập nhật hash sau mỗi thay đổi lớn.
-
-#### 1_IDENTITY/ – Bản sắc (PINNED)
-Mục đích: Giữ "tôi là ai" sau model swap/reset.
-Tất cả file STATE: PINNED → không decay.
-
-#### 2_COGNITIVE/ – Operational Brain (PINNED)
-Mục đích: Quy tắc nhanh, distilled từ insight + signal.
-- **HEURISTICS.md**: Append-only + auto-propose từ Reflection.
-  Không inject vào RAG (giảm token, tăng tốc decision).
-
-#### 3_LEARNING/ – Cognitive Memory Engine + Consolidation
-Mục đích: Nơi diễn ra toàn bộ cognitive loop (episodic → semantic → heuristic).
-- **LOG_SCHEMA.md v1.9**: Chuẩn định dạng memory (deterministic + alias redirect + OBSERVATION + session tracking).
-- **HYPOTHESES/**, **EXPERIMENTS/**, **LESSONS/**: File-per (h-YYYY-MM-DD-*.md).
-- **SIGNALS.md**: Append-only tín hiệu bất thường → trigger reflection.
-- **nightly_indexer.py**: Lifecycle sweep + salience + semantic summary nodes + archived_alias.json update + archive.
-
-#### 4_OPERATIONAL_DATA/ – Data-only + Cognitive RAG
-Mục đích: Lớp vận hành, không có quyền governance.
-- **rag/write_helper.py**: Sinh NODE_ID từ TYPE + KEYWORD với short-hash (collision-resistant).
-- **rag/query.py**: Cognitive Pipeline + Circuit Breaker + archived_alias resolve.
-- **rag/nightly_indexer.py**: Lifecycle + salience + consolidation + archived_alias.json creation + prune ARCHIVED.
-- **rag/archived_alias.json**: Redirect mapping (không sửa edge gốc, giữ traceability).
-- **rag/weekly_graph_validator.py**: Cycle detection + dangling check + alias integrity.
-- **rag/cron_setup.py** [v1.723]: Đăng ký native OpenClaw cron jobs một lần.
-- **causal_index.json**: Derived cache (regenerate từ Markdown bất kỳ lúc nào).
-
-#### 5_WORKING_STATE/ – Runtime snapshot
-Mục đích: Lưu trạng thái tạm thời (active tasks, mode).
-- **CRON_REGISTRY.md** [v1.723+]: Danh sách cron jobs đang active + lần chạy gần nhất.
-
-#### TOOL_HARNESS_LAYER.md [MỚI v1.9]
-Mục đích: Chuẩn hoá mọi tool calls qua 1 điểm vào duy nhất.
-Chi tiết: Registry + Permission Matrix + Execution Wrapper.
-
-#### PARITY_AUDIT.md [MỚI v1.9]
-Mục đích: Weekly spec-vs-implementation gap detection.
-Chi tiết: Scan, Classify (LOW/MEDIUM/CRITICAL), Report.
-
-#### GOVERNANCE_SIMPLIFICATION/
-- **COMPLEXITY_BUDGET.md**: Theo dõi số cơ chế (max 9 engines, cross-cutting không tính).
-- **SIMPLIFICATION_CYCLES.md**: Audit 90 ngày/lần.
-
-### Cognitive Retrieval Pipeline (hardcoded trong query.py)
+### Cognitive Retrieval Pipeline (Embedded in `query.py`)
 
 ```
 Query
  │
-Vector + BM25 search
+Vector + BM25 Search Mechanics
  │
-Parse NODE_ID (đã do write_helper.py sinh – deterministic 100%)
+Parse NODE_ID (Deterministic routing verified)
  │
-Temporal filter + VALID_UNTIL warning
+Temporal Filration + Expiration Warnings
  │
-Circuit Breaker (tiered):
-   • rerank_score < 0.5 → Hard Stop + cảnh báo
-   • Derived Confidence > 0.75 → Selective Expand (max_nodes=5)
-   • Flag "--deep-reasoning" → Deep Dive (max_nodes=8)
+Tiered Circuit Breaker Processing:
+   • Rerank < 0.5 → Emergency Hard Stop
+   • Derived Confidence > 0.75 → Selective Expansion Mapping
+   • Presence of "--deep-reasoning" → High-Intensity Deep Dive
  │
-Check archived_alias.json (redirect nếu node đã archive)
+Resolution referencing archived_alias.json
  │
-Confidence propagation (full formula)
+Confidence Propagation Equation
  │
-Salience rerank (log(access_count + 1))
+Salience Reranking Protocols
  │
-Shadow Evaluator (cutoff 0.65 + direction safety)
+Shadow Evaluator Final Sanity Check (Cutoff 0.65 limits)
  │
-Tool Harness Logging [MỚI v1.9] (ghi tool_call vào session log)
+Tool Harness Logging (Metamorphic tool tracking insertion)
  │
-Context builder → LLM
+Final Contextual Builder → Transmits to LLM
 ```
 
 ---
 
-## III. Cross-cutting Layers (MỚI v1.9)
+## III. Implemented Cross-cutting Layers
 
 ### A. Tool Harness Layer
 
-Chuẩn hoá mọi tool interaction thành **một điểm vào duy nhất** với:
-- Registry (biết tool nào tồn tại)
-- Permission (ai được gọi tool nào)
-- Execution wrapper (logging + cost tracking + error handling)
+Systematically regulates all internal tool interactions bounding them strictly via:
+- **Registry Check** (Confirms explicit tool existence)
+- **Permission Mapping** (Governs execution authorities definitively)
+- **Execution Wrapper** (Fires logging + token estimation + integrated error bypass systems)
 
-Thay thế cách gọi bash scripts rải rác hiện tại.
+**Authorization Parameters:**
+| Clearance Level | Action Granted | Example Parameters |
+|-----------------|----------------|--------------------|
+| `any_agent` | Accessible freely across agent models | write_helper, reindex_file, query |
+| `system_only` | Restricts use to Cron automation frameworks | nightly_indexer, compact_session |
+| `creator_only` | Mandates explicit Creator approval inputs | Modifying Constitution variables |
 
-**Permission levels (Solo Agent):**
-
-| Permission Level | Cho phép | Ví dụ |
-|------------------|---------|-------|
-| `any_agent` | Agent chính | write_helper, reindex_file, query |
-| `system_only` | Orchestrator / Cron | nightly_indexer, compact_session |
-| `creator_only` | Creator override | Sửa Constitution |
-
-**Write Rule v1.9:** Mọi tool call nên đi qua harness:
+**Write Protocol Execution:**
+All structural modifications navigate strictly via the internal harness:
 ```python
 harness_execute("write_helper", "agent", {"type": TYPE, "keyword": KEYWORD})
-harness_execute("reindex_file", "agent", {"file_path": "đường_dẫn"})
 ```
-
-Chi tiết đầy đủ: `memory/TOOL_HARNESS_LAYER.md`
 
 ### B. Session Intelligence
 
-Agent tracking token usage per session:
-```yaml
-session:
-  max_budget_tokens: 150000
-  compact_after_turns: 12
-  structured_retry_limit: 2
-```
+Token utilization operates under exhaustive tracking sequences:
+- `budget_percent > 85%` → Agent alerts and shifts to economical consumption mode.
+- `turns > compact_after_turns` → Dynamic transcription compaction engages.
+- **Structured Output Retry:** Automatically cycles corrective prompts responding to malformed outputs prior to initiating sequence block protocols.
 
-- `budget_percent > 85%` → alert Agent chuyển mode tiết kiệm
-- `turns > compact_after_turns` → auto-compact transcript (giữ N turns gần nhất + tóm tắt turns cũ)
-- **Structured Output Retry:** LLM trả output sai format → gửi repair prompt (max 2 lần) → nếu vẫn fail → extract partial + block
+### C. Weekly Parity Audit
 
-### C. Parity Audit (Weekly)
-
-Nằm trong System Integrity weekly tasks:
-- So sánh spec documents (.md) với implementation thực tế
-- Phát hiện gap: tool khai báo nhưng file không tồn tại, schema mismatch, etc.
-- Output: gap report → nếu CRITICAL → alert Creator
-
-Chi tiết đầy đủ: `memory/PARITY_AUDIT.md`
+Configured firmly onto native System Integrity tracking arrays:
+- Cross-references markdown specifications relative to hardcoded manifestations.
+- Triggers intensive alerts toward the Creator following any CRITICAL divergence parameters.
 
 ---
 
-## IV. Native OpenClaw Automation (giữ nguyên từ v1.723, bổ sung 1 cron mới)
+## IV. Native OpenClaw Automation Frameworks
 
-### A. Cron Jobs bắt buộc (mọi agent production)
+### A. Foundational Cron Jobs
 
-Tất cả jobs được quản lý qua **OpenClaw native cron** — lưu tại `~/.openclaw/cron/jobs.json`, tồn tại qua restart.
+Schedules persist independent of terminal operations; recorded cleanly at `~/.openclaw/cron/jobs.json`.
 
-**Setup một lần:**
-```bash
-python3 <workspace>/memory/4_OPERATIONAL_DATA/rag/cron_setup.py --agent <agent-id> --dry-run
-python3 <workspace>/memory/4_OPERATIONAL_DATA/rag/cron_setup.py --agent <agent-id>
-```
+| Designation | Temporal Routine | Nature | Expected Delivery |
+|-------------|------------------|--------|-------------------|
+| Nightly Memory Indexer | `0 3 * * *` | systemEvent | None |
+| Weekly Graph Validator | `0 2 * * 6` | systemEvent | None |
+| Monday Health Evaluation | `0 9 * * 1` | systemEvent | Announce protocol |
+| **Parity Integrity Audit** | **`0 2 * * 0`** | **systemEvent** | **None** |
 
-**4 jobs chuẩn:**
+### B. Dynamic Heartbeat Matrix
 
-| Job | Schedule | Loại | Delivery |
-|---|---|---|---|
-| Nightly Memory Indexer | `0 3 * * *` (Asia/HCM) | systemEvent | none |
-| Weekly Graph Validator | `0 2 * * 6` (Asia/HCM) | systemEvent | none |
-| Monday Health Check | `0 9 * * 1` (Asia/HCM) | systemEvent | announce |
-| **Parity Audit** | **`0 2 * * 0` (Asia/HCM)** | **systemEvent** | **none** |
+Modulates frequencies correlating distinctly against dynamic task loads:
+- **BUSY:** `10m` (urgent workload, active Creator interaction)
+- **NORMAL:** `30m` (standard execution within programmed `activeHours`)
+- **IDLE:** Elevates stepwise up to `12h` (preserves token assets during absolute systemic dormancy)
 
-**Quản lý:**
-```bash
-openclaw cron list --agent <id>
-openclaw cron status
-openclaw cron run <jobId>           # chạy thủ công để test
-openclaw cron runs --id <jobId>    # lịch sử chạy
-```
-
-### B. Dynamic Heartbeat (giữ nguyên từ v1.723)
-
-Agent điều chỉnh tần suất theo 3 trạng thái workload:
-
-```
-BUSY mode:   every = "10m"   (đang xử lý task cấp thiết, creator đang online)
-NORMAL mode: every = "30m"   (làm việc bình thường trong activeHours)
-IDLE mode:   every = "3h" → "5h" → max "12h"   (hệ thống nhàn — TRÁNH ĐỐT TOKEN)
-```
-
-**Cấu hình khuyến nghị trong `openclaw.json`:**
-```json
-{
-  "agents": {
-    "defaults": {
-      "heartbeat": {
-        "every": "3h",
-        "target": "last",
-        "activeHours": { "start": "08:00", "end": "22:00" }
-      }
-    }
-  }
-}
-```
-
-> **Nguyên tắc:** Ngoài `activeHours`: không heartbeat (quiet-hours tự skip).
-> Trong `activeHours` mà system nhàn: `every = "3h"` là mặc định khuyến nghị.
-> Chỉ đẩy xuống `"30m"` khi có creator đang online hoặc task cấp thiết đang chờ.
-
-**Điều chỉnh động (agent tự thay đổi):**
-```
-→ Creator online + task cấp: gateway.config.patch({"agents.list[id=X].heartbeat.every": "10m"})
-→ Task xong, idle:           gateway.config.patch({"agents.list[id=X].heartbeat.every": "3h"})
-→ Cuối ngày (sau 20:00):     gateway.config.patch({"agents.list[id=X].heartbeat.every": "12h"})
-```
-
-**HEARTBEAT.md template chuẩn (< 20 dòng):**
-```markdown
-# Heartbeat Checklist
-- Kiểm tra SIGNALS.md: có SIGNAL mới nào cần reflection không?
-- Kiểm tra cron jobs: có job nào fail 24h qua? (openclaw cron runs --limit 5)
-- Kiểm tra 5_WORKING_STATE/ACTIVE_TASKS.json: task nào stale > 48h?
-- Nếu DECAYING nodes > 15: flag nightly consolidation
-- Nếu giờ > 20:00 và không có gì cần alert → chuyển sang IDLE mode (12h)
-- Nếu không có gì cần alert → reply HEARTBEAT_OK
-```
-
-### C. BOOT.md (Tùy chọn – mới v1.723)
-
-File `BOOT.md` trong workspace được thực thi khi gateway restart (nếu hook `boot-md` enabled).
-Giữ < 10 dòng, dùng tool `message` để gửi thông báo ra ngoài.
-
-```markdown
-# Boot Checklist
-- Xác nhận gateway đã khởi động thành công
-- Kiểm tra SYSTEM_STATE.json: có task nào interrupted không?
-- Nếu có interrupted task → gửi thông báo Creator
-```
+**Enforced Principle:** Heartbeats disengage autonomously beyond mapped `activeHours`.
 
 ---
 
-## V. Critical Rules (giữ nguyên từ v1.722, bổ sung 4 quy tắc mới)
+## V. Critical Adherence Rulesets
 
-1. **Bootstrap Priority Order** (không thay đổi)
-   Constitution → Identity → Heuristics → Shadow → Working State → RAG
+1. **Bootstrap Progression**
+   Constitution → Identity → Heuristics → Shadow Framework → Working State → RAG Systems.
 
-2. **Minimal / Core-only Mode** (không thay đổi)
-   Chỉ load Layer 0–2 + Shadow Evaluator. Tắt RAG, expansion, consolidation.
+2. **Core-only Execution Mode**
+   Implements strictly foundational boundaries; terminates dynamic data retrieval sequences limiting processing overhead directly.
 
-3. **Adaptive Reflection Triggers** (không thay đổi)
-   - SIGNAL lặp ≥3 lần trong 24h
-   - Field Sampling friction ≥3
-   - Derived Confidence cascade < 0.65
-   - 30 ngày không reflection
-   - Creator yêu cầu "Run Reflection Cycle"
+3. **Reflection Initiators**
+   Cycles automatically trigger responding to recurrent anomalies, cascaded confidence depreciation, structural friction, or predefined schedule intervals limit mapping.
 
-4. **Authority Isolation** (không thay đổi)
-   RAG & nightly_indexer chỉ đọc, không ghi Layer 0–2.
+4. **Authority Containment**
+   Data matrices (`query.py` & `nightly_indexer.py`) assert Read-Only constraints avoiding Constitution alteration rights intrinsically.
 
-5. **Shadow Evaluator** (không thay đổi)
-   Pre-write validation: phải có TYPE + KEYWORD.
+5. **Operational Consistency**
+   Shadow structures fundamentally validate operations demanding defined categorical structure integrations.
 
-6. **Deterministic Node Generator** (không thay đổi)
-   LLM chỉ viết TYPE + KEYWORD → write_helper.py sinh NODE_ID.
+6. **Deterministic Generation Constraints**
+   Agents articulate `TYPE` and `KEYWORD`; systemic applications automatically project collision-resistant unique Identifiers.
 
-7. **Circuit Breaker** (không thay đổi)
-   rerank_score < 0.5 → Hard Stop. Derived Confidence > 0.75 → Selective Expand.
+7. **Circuit Verification Gates**
+   Automatically disrupts expansive context retrievals whenever established probability indices degrade below accepted confidence minimums.
 
-8. **Semantic Summary Nodes & Alias Redirect** (không thay đổi)
+8. **Graph Cohesion Protocol**
+   Defends the associative linking layers mapping archival histories precisely via defined json parameters preserving legacy connections securely.
 
-9. **Weekly Graph Validator** (không thay đổi)
+9. **Heartbeat Token Economy Constraint**
+   Preserves uncompromised scaling limitations enforcing systemic idle parameters blocking unjustified token depletion loops completely.
 
-10. **Complexity Budget: 9/9** (không thay đổi)
+10. **Harness Enforced Protocol (HARDENED)**
+    Tool actions subverting the designated registry instantly encounter strict systematic SYSTEM BLOCK procedures. Absolute verification is non-negotiable.
 
-**[MỚI v1.723] Quy tắc 10: Heartbeat Token Economy**
-- Trong giờ làm việc nhàn: `every ≥ 3h`. Không bao giờ < 10m trừ khi creator đang tương tác.
-- Hệ thống nhàn từ 20:00-08:00: heartbeat disabled hoàn toàn qua `activeHours`, không dùng every ngắn để "bù".
-
-**[MỚI v1.723] Quy tắc 11: Cron Job Registry**
-- Mọi agent production phải có `5_WORKING_STATE/CRON_REGISTRY.md`.
-- Cập nhật sau mỗi lần thêm/xóa cron job.
-
-**[MỚI v1.9] Quy tắc 12: Tool Harness Enforcement (HARDENED)**
-- Mọi tool call PHẢI đi qua `harness_execute()`. Tool ngoài registry → **BLOCK** (không passthrough). ← Breaking change từ v1.8
-- Permission check trước execution. `system_only` tools bị gọi ngoài cron → **HARD BLOCK** ← thay đổi từ v1.8 (soft → hard)
-- `creator_only` tools (sửa Constitution) cần Creator confirm.
-- **SHA-256 verification:** Mọi script đều phải match hash trong registry trước khi chạy. Mismatch = BLOCK + ALERT.
-
-**[MỚI v1.9] Quy tắc 13: Parity Audit Rule**
-- Parity Audit chạy weekly (cron `0 2 * * 0`). Gap severity CRITICAL → alert Creator + trigger Reflection Mode.
-- Sau mỗi version upgrade, chạy full audit thủ công.
-- **[v1.9] Kiểm tra thêm:** SHA-256 integrity, dependency version drift, isolation violation.
-
-**[MỚI v1.9] Quy tắc 14: Supply Chain Defense**
-- Tool có external dependencies (`dependencies != []`) **KHÔNG ĐƯỢC** chạy `isolation: "native"`. Phải dùng `"docker"` hoặc `"sandbox"`.
-- Dependency mới phải được Creator approve. Pin exact version (`==`) + kèm `sha256` hash của package.
-- Tool không có dependency (`dependencies: []`) luôn được ưu tiên hơn (attack surface = 0).
-- **Cơ sở quy tắc:** Axios npm RAT (2026-03-31) + LiteLLM PyPI infostealer (2026-03-24) — cả hai đều có cơ chế tự xóa sau khi cài, khiến virus scan thông thường không phát hiện được. Phòng thủ từ kiến trúc (isolation + hash pinning) là cách duy nhất.
+11. **Supply Chain Defense Matrices**
+    Tools mandating external software requirements strictly operate beneath isolated structural environments (Docker/Sandbox constraints). Verification hashing applies indiscriminately against operational tool parameters.
 
 ---
 
-## VI. File Relationships (v1.9)
+## VI. Functional File Relational Diagram
 
 ```
-0_CONSTITUTION (PINNED/IMMUNABLE) ── constrains ──► 1_IDENTITY (PINNED)
+0_CONSTITUTION (IMMUTABLE) ── limits ──► 1_IDENTITY (PINNED)
      │
-     └─ evolves via Reflection + Consolidation ──► 3_LEARNING (Cognitive Engine)
-                                   ▲
-2_COGNITIVE/HEURISTICS.md ── executes fast ──► 4_OPERATIONAL_DATA (RAG + alias)
-                                   │                │
-                                   ▼                ▼
-                          5_WORKING_STATE    OpenClaw cron jobs
-                          (runtime + CRON_REGISTRY)
-                                   │
-                    TOOL_HARNESS_LAYER ──► wraps all tool calls
-                    PARITY_AUDIT ──► weekly integrity check
+     └─ matures utilizing Reflection iterations ──► 3_LEARNING (Insight Hub)
+                                    ▲
+2_COGNITIVE/HEURISTICS.md ── immediate actions ──► 4_OPERATIONAL (RAG logic)
+                                    │                    │
+                                    ▼                    ▼
+                           5_WORKING_STATE       OpenClaw Cron Structures
+                                    │
+                     TOOL_HARNESS_LAYER ──► Wraps all executables reliably
+                     PARITY_AUDIT ──► Regulates total implementation alignment
 ```
 
 ---
 
-*Arc - Builder | FEOFALLS Team | v1.9 | 2026-04-02*
-*Supply Chain Hardened | Tương thích với: OpenClaw Gateway v2026.3+ | Áp dụng cho Solo Agents*
-*ATLAS agents xem: ATLAS_Architecture_v1.0.md*
+*Arc - Builder | FEOFALLS Team*  
+*Supply Chain Hardened | Applicable strictly to Solo Agents*

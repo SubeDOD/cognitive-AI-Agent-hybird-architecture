@@ -21,14 +21,14 @@ Key design pillars:
 
 ## 📁 Repository Structure
 
-| File | Version | Description |
-|------|---------|-------------|
-| `ARCHITECTURE_HYBRID_v1.9.md` | v1.9 | Core hybrid architecture spec — memory layers, retrieval pipeline, cron jobs, critical rules |
-| `AGENT_OPERATIONAL_GUIDE_v1.9.md` | v1.9 | Day-to-day operations — bootstrap sequence, write rules, heartbeat, session checklist |
-| `TOOL_HARNESS_LAYER.md` | v1.901 | Cross-cutting tool management — registry, permission matrix, SHA-256 enforcement, execution wrapper |
-| `LOG_SCHEMA_v1.9.md` | v1.9 | Memory block standard — NODE_ID format, 14 memory types, metadata fields, lifecycle rules |
-| `PARITY_AUDIT.md` | v1.9 | Weekly spec-vs-implementation gap detection — scan, classify (LOW/MEDIUM/CRITICAL), report |
-| `FEOFALLS_MEMO_TASK_MANAGEMENT.md` | — | Architecture memo on task management conflict with OpenClaw v2026.4.x native `/tasks` board |
+| File | Description |
+|------|-------------|
+| `ARCHITECTURE_HYBRID_v1.9.md` | Core hybrid architecture spec — memory layers, retrieval pipeline, cron jobs, critical rules |
+| `AGENT_OPERATIONAL_GUIDE_v1.9.md` | Day-to-day operations — bootstrap sequence, write rules, heartbeat, session checklist |
+| `TOOL_HARNESS_LAYER.md` | Cross-cutting tool management — registry, permission matrix, SHA-256 enforcement, execution wrapper |
+| `LOG_SCHEMA_v1.9.md` | Memory block standard — NODE_ID format, 14 memory types, metadata fields, lifecycle rules |
+| `PARITY_AUDIT.md` | Weekly spec-vs-implementation gap detection — scan, classify (LOW/MEDIUM/CRITICAL), report |
+| `FEOFALLS_MEMO_TASK_MANAGEMENT.md` | Architecture memo on task management conflict with OpenClaw v2026.4.x native `/tasks` board |
 
 ---
 
@@ -47,16 +47,16 @@ Key design pillars:
                                             5_WORKING_STATE (runtime)
 ```
 
-### New in v1.9 (vs v1.723)
-| Feature | Change |
-|---------|--------|
-| **Tool Harness Layer** | Centralized tool registry replacing scattered bash calls |
-| **Supply Chain Defense** | SHA-256 integrity + dependency pinning + docker/sandbox isolation |
-| **Hard BLOCK enforcement** | Unregistered tools now BLOCKED (was: passthrough in v1.8) |
-| **Parity Audit** | Weekly automated spec-vs-implementation diff |
-| **Session Intelligence** | Token budget tracking + transcript compaction |
-| **`[OBSERVATION]` memory type** | New type for recording real-world Creator feedback |
-| **Structured Output Retry** | Auto-repair malformed LLM outputs (max 2 attempts) |
+### Core Mechanisms
+| Feature | Function |
+|---------|----------|
+| **Tool Harness Layer** | Centralized tool registry driving execution wrappers across the agent. |
+| **Supply Chain Defense** | SHA-256 integrity + dependency pinning + docker/sandbox isolation protocols. |
+| **Hard BLOCK enforcement** | Unregistered or unauthorized tools are instantly blocked. |
+| **Parity Audit** | Weekly automated spec-vs-implementation discrepancy tracking. |
+| **Session Intelligence** | Operational token budget tracking scaling natively with transcript compaction. |
+| **`[OBSERVATION]` memory type** | Discrete block structure for recording real-world Creator feedback. |
+| **Structured Output Retry** | Engages auto-repair logic handling malformed outputs (max 2 attempts). |
 
 ### Automation (4 Native OpenClaw Cron Jobs)
 | Job | Schedule | Purpose |
@@ -64,7 +64,7 @@ Key design pillars:
 | Nightly Memory Indexer | `0 3 * * *` | Lifecycle sweep, salience update, auto-consolidation |
 | Weekly Graph Validator | `0 2 * * 6` | Cycle detection, dangling edges, alias integrity |
 | Monday Health Check | `0 9 * * 1` | System status announcement |
-| **Parity Audit** *(new v1.9)* | `0 2 * * 0` | Spec-vs-implementation gap detection |
+| Parity Audit | `0 2 * * 0` | Spec-vs-implementation gap detection |
 
 ---
 
