@@ -1,0 +1,9 @@
+# Exclude backup files
+*_backup.md
+*.backup
+*.bak
+
+# Exclude OS files
+.DS_Store
+Thumbs.db
+desktop.ini
